@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# import midi object library and set backend to pygame to allow access to midi ports.
+# import midi object library and set backend to pygame to provide access to midi ports.
 
 import mido
 import pygame.midi as pym
@@ -74,29 +74,29 @@ class MidiOutput:
     def __init__(self):
         self.parameters = UserOptions()
         self.durations = Calculate(self.parameters)
+        self.out_port = self.open_port()
 
-    def send_start(self):
-        self.parameters.out_port.open()
-        self.parameters.out_port.send(mido.Message('record'))
+    def open_port(self):
+        return mido.open_output(self.parameters.port)
 
     def send_note(self):
-        on_msg = mido.Message('note_on', channel=self.parameters.channel, note=60)
-        self.parameters.out_port.send(on_msg)
+        on_msg = mido.Message('note_on', channel=self.parameters.channel, note=36)
+        self.out_port.send(on_msg)
         sleep(self.durations.note_length)
-        off_msg = mido.Message('note_off', channel=self.parameters.channel, note=60)
-        self.parameters.out_port.send(off_msg)
+        off_msg = mido.Message('note_off', channel=self.parameters.channel, note=36)
+        self.out_port.send(off_msg)
 
     def note_controller(self):
-        for note in range(1, self.parameters.notes):
+        self.out_port.send(mido.Message('start'))
+        for note in range(0, self.parameters.notes):
             self.send_note()
             sleep(self.durations.gap)
 
     def end_process(self):  # closes port and sends user confirmation sequence ended
         self.out_port.close()
-        print('Sequence ended successfully')
+        print('\nSequence ended successfully')
 
     def sequence_controller(self):
-        self.send_start()
         self.note_controller()
         self.end_process()
 
@@ -106,6 +106,3 @@ if __name__ == '__main__':
     sequence = MidiOutput()
     sequence.sequence_controller()
 
-    print('Completed')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
