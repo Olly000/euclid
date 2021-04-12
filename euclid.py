@@ -10,10 +10,13 @@ mido.set_backend('mido.backends.pygame')
 pym.init()
 
 
-class MidiOptions:
+class UserOptions:
     def __init__(self):
         self.port = self.get_port()
         self.channel = self.get_channel()
+        self.bpm = self.get_bpm()
+        self.bars = self.get_bars()
+        self.notes = self.get_notes()
 
     @staticmethod
     def get_port():
@@ -21,18 +24,11 @@ class MidiOptions:
         print('Available MIDI ports are \n')
         for name in range(0, len(port_list)):
             print('%s' % name, port_list[name])
-        return port_list[int(input('\nChoose port by number: '))]
+        return port_list[int(input('Choose port by number: '))]
 
     @staticmethod
     def get_channel():
         return int(input('Choose MIDI channel to output on (1-16): ')) - 1
-
-
-class SeqOptions:
-    def __init__(self):
-        self.bpm = self.get_bpm()
-        self.bars = self.get_bars()
-        self.notes = self.get_notes()
 
     @staticmethod
     def get_bpm():
@@ -47,24 +43,24 @@ class SeqOptions:
         return int(input('Choose number of notes: '))
 
 
-class Process:
+class Calculate:
     def __init__(self, options):
-        self.duration = self.calculate_duration(options.bpm, options.bars)
-        self.division_length = self.calculate_division_length(options.notes)
-        self.note_length = self.calculate_note_length(options.bpm)
+        self.options = options
+        self.duration = self.calculate_duration()
+        self.division_length = self.calculate_division_length()
+        self.note_length = self.calculate_note_length()
         self.gap = self.calculate_gap()
 
-    @staticmethod
-    def calculate_duration(bpm, bars):
-        return float(60/bpm) * 4 * bars
+    def calculate_duration(self):
+        return float(60/self.options.bpm) * 4 * self.options.bars
 
-    def calculate_division_length(self, notes):
-        return self.duration/notes
+    def calculate_division_length(self):
+        return self.duration/self.options.notes
 
-    def calculate_note_length(self, bpm):
-        note_length = (60/bpm)/4
+    def calculate_note_length(self):
+        note_length = (60 / self.options.bpm) / 4
         while note_length >= self.division_length:
-            note_length = note_length/2
+            note_length /= 2
         return note_length
 
     def calculate_gap(self):
@@ -76,18 +72,40 @@ class Process:
 
 class MidiOutput:
     def __init__(self):
-        pass
+        self.parameters = UserOptions()
+        self.durations = Calculate(self.parameters)
+
+    def send_start(self):
+        self.parameters.out_port.open()
+        self.parameters.out_port.send(mido.Message('record'))
+
+    def send_note(self):
+        on_msg = mido.Message('note_on', channel=self.parameters.channel, note=60)
+        self.parameters.out_port.send(on_msg)
+        sleep(self.durations.note_length)
+        off_msg = mido.Message('note_off', channel=self.parameters.channel, note=60)
+        self.parameters.out_port.send(off_msg)
+
+    def note_controller(self):
+        for note in range(1, self.parameters.notes):
+            self.send_note()
+            sleep(self.durations.gap)
+
+    def end_process(self):  # closes port and sends user confirmation sequence ended
+        self.out_port.close()
+        print('Sequence ended successfully')
+
+    def sequence_controller(self):
+        self.send_start()
+        self.note_controller()
+        self.end_process()
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
-    output_port = MidiOptions.get_port()
-    output_channel = MidiOptions.get_channel()
-    sequence = SeqOptions()
-    calculate = Process(sequence)
+    sequence = MidiOutput()
+    sequence.sequence_controller()
 
-    calculate.check_calculations()
     print('Completed')
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
